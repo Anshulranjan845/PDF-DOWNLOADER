@@ -16,15 +16,13 @@ async function getBrowser() {
   }
 
   // Vercel serverless — use chromium binary
-  return puppeteerCore.launch(
-    {
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-    },
-    { ignoreDefaultArgs: ["--disable-extensions"] },
-  );
+  return puppeteerCore.launch({
+    args: chromium.args,
+    defaultViewport: chromium.defaultViewport,
+    executablePath: await chromium.executablePath(),
+    headless: chromium.headless,
+    ignoreDefaultArgs: ["--disable-extensions"],
+  });
 }
 
 // Helper: generate single PDF buffer from URL
