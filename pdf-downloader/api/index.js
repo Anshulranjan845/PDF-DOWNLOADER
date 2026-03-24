@@ -4,10 +4,10 @@ const archiver = require("archiver");
 
 // Helper: launch browser
 async function getBrowser() {
-  const isLocal = process.env.NODE_ENV === "development";
+  const isVercel = !!process.env.VERCEL;
 
-  if (isLocal) {
-    // Local development — use full puppeteer
+  if (!isVercel) {
+    // Local development
     const puppeteer = require("puppeteer");
     return puppeteer.launch({
       headless: "new",
@@ -15,13 +15,12 @@ async function getBrowser() {
     });
   }
 
-  // Vercel serverless — use chromium binary
+  // Vercel serverless
   return puppeteerCore.launch({
     args: chromium.args,
     defaultViewport: chromium.defaultViewport,
     executablePath: await chromium.executablePath(),
     headless: chromium.headless,
-    ignoreDefaultArgs: ["--disable-extensions"],
   });
 }
 
