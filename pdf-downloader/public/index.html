@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Downloader</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f0;
+      color: #1a1a1a;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container { max-width: 680px; margin: 0 auto; }
+
+    header { margin-bottom: 2rem; }
+    header h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+    header p  { font-size: 14px; color: #666; }
+
+    .card {
+      background: #fff;
+      border: 0.5px solid #ddd;
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 14px;
+    }
+
+    .card h2 { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #333; }
+
+    textarea {
+      width: 100%;
+      min-height: 130px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-family: 'Courier New', monospace;
+      border: 0.5px solid #ccc;
+      border-radius: 8px;
+      resize: vertical;
+      background: #fafafa;
+      color: #1a1a1a;
+      outline: none;
+      transition: border-color .15s;
+      line-height: 1.6;
+    }
+    textarea:focus { border-color: #888; background: #fff; }
+    textarea::placeholder { color: #aaa; }
+
+    .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+    button {
+      padding: 8px 18px;
+      border-radius: 8px;
+      border: 0.5px solid #ccc;
+      background: #fff;
+      font-size: 13px;
+      cursor: pointer;
+      color: #1a1a1a;
+      transition: background .15s, opacity .15s;
+    }
+    button:hover:not(:disabled) { background: #f0f0ee; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-primary {
+      background: #1a1a1a;
+      color: #fff;
+      border-color: transparent;
+    }
+    .btn-primary:hover:not(:disabled) { background: #333; }
+
+    .btn-danger { border-color: #fca5a5; color: #b91c1c; }
+    .btn-danger:hover:not(:disabled) { background: #fff1f1; }
+
+    /* Queue */
+    .queue { display: flex; flex-direction: column; gap: 8px; }
+
+    .queue-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: #f9f9f7;
+      border-radius: 8px;
+      border: 0.5px solid #e8e8e4;
+    }
+
+    .item-icon {
+      width: 28px; height: 28px; border-radius: 6px;
+      background: #e8f0fb; display: flex; align-items: center;
+      justify-content: center; flex-shrink: 0;
+    }
+    .item-icon svg { width: 14px; height: 14px; }
+
+    .item-info { flex: 1; min-width: 0; }
+    .item-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item-url  { font-size: 11px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .badge {
+      font-size: 11px; font-weight: 500;
+      padding: 3px 9px; border-radius: 20px;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .badge-waiting    { background: #fef3c7; color: #92400e; }
+    .badge-processing { background: #dbeafe; color: #1e40af; }
+    .badge-done       { background: #dcfce7; color: #166534; }
+    .badge-failed     { background: #fee2e2; color: #991b1b; }
+
+    .item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+    .sm-btn {
+      padding: 4px 10px; font-size: 12px;
+      border-radius: 6px; border: 0.5px solid #ccc;
+      background: #fff; cursor: pointer; color: #1a1a1a;
+    }
+    .sm-btn:hover { background: #f0f0ee; }
+    .sm-btn.green { border-color: #86efac; color: #166534; background: #f0fdf4; }
+    .sm-btn.green:hover { background: #dcfce7; }
+
+    /* Spinner */
+    .spin {
+      display: inline-block; width: 11px; height: 11px;
+      border: 2px solid #bfdbfe; border-top-color: #1e40af;
+      border-radius: 50%; animation: spin .65s linear infinite;
+      vertical-align: middle; margin-right: 4px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Progress bar */
+    .progress-wrap { margin-top: 8px; }
+    .progress-bar-bg {
+      height: 4px; background: #e5e5e0;
+      border-radius: 2px; overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%; background: #1a1a1a;
+      border-radius: 2px; transition: width .3s;
+      width: 0%;
+    }
+    .progress-label { font-size: 12px; color: #666; margin-top: 6px; }
+
+    /* Info */
+    .info {
+      font-size: 12px; color: #555;
+      background: #eff6ff; border-radius: 8px;
+      padding: 10px 14px; line-height: 1.7;
+      border: 0.5px solid #bfdbfe;
+    }
+    .info strong { color: #1e3a5f; }
+
+    /* Empty state */
+    .empty {
+      text-align: center; padding: 2rem 1rem;
+      color: #aaa; font-size: 13px;
+    }
+
+    /* Download all */
+    #download-all-wrap { display: none; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>PDF Downloader</h1>
+    <p>Paste document URLs — one per line — and download them as PDFs</p>
+  </header>
+
+  <!-- Input card -->
+  <div class="card">
+    <h2>Add URLs</h2>
+    <textarea
+      id="url-input"
+      placeholder="https://in.docworkspace.com/d/abc123?fn=file.pdf&#10;https://example.com/another-doc&#10;https://example.com/third-doc"
+    ></textarea>
+    <div class="row">
+      <button class="btn-primary" onclick="addToQueue()">Add to queue</button>
+      <button onclick="clearDone()">Clear done</button>
+      <button class="btn-danger" onclick="clearAll()">Clear all</button>
+    </div>
+  </div>
+
+  <!-- Queue card -->
+  <div class="card" id="queue-card" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <h2 style="margin:0">Queue <span id="queue-count" style="font-weight:400;color:#888;font-size:13px"></span></h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div id="download-all-wrap">
+          <button class="sm-btn green" onclick="downloadAll()">Download all as ZIP</button>
+        </div>
+        <button class="btn-primary" id="process-btn" onclick="processQueue()">Generate PDFs</button>
+      </div>
+    </div>
+
+    <div id="progress-wrap" class="progress-wrap" style="display:none">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+      <div class="progress-label" id="progress-label"></div>
+    </div>
+
+    <div class="queue" id="queue-list">
+      <div class="empty">No items yet</div>
+    </div>
+  </div>
+
+  <div class="info">
+    <strong>How it works:</strong> Each URL is sent to a serverless function that launches a headless Chrome browser,
+    navigates to the page, waits for it to fully render, then exports it as a PDF and streams it back to you.
+    Works with any publicly accessible URL. For bulk downloads, all PDFs are packaged into a single ZIP file.
+  </div>
+
+</div>
+
+<script>
+  // ── Config ─────────────────────────────────────────────────────────────────
+  // Change this to your deployed Vercel URL after deployment
+  // During local dev it points to localhost
+  const API_BASE = window.location.hostname === 'localhost'
+    ? 'http://localhost:3000/api'
+    : '/api';
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  let queue = [];
+  let isProcessing = false;
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function extractFilename(url) {
+    try {
+      const u = new URL(url);
+      const fn = u.searchParams.get('fn');
+      if (fn) return fn.endsWith('.pdf') ? fn : fn + '.pdf';
+      const parts = u.pathname.split('/').filter(Boolean);
+      const last = parts[parts.length - 1];
+      if (last && last.includes('.')) return last;
+      const host = u.hostname.replace('www.', '');
+      return host.split('.')[0] + '_' + Date.now() + '.pdf';
+    } catch (_) {
+      return 'document_' + Date.now() + '.pdf';
+    }
+  }
+
+  function uid() {
+    return Math.random().toString(36).slice(2);
+  }
+
+  // ── Queue ops ──────────────────────────────────────────────────────────────
+  function addToQueue() {
+    const raw = document.getElementById('url-input').value.trim();
+    if (!raw) return;
+    const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+    let added = 0;
+    lines.forEach(url => {
+      if (!queue.find(q => q.url === url)) {
+        queue.push({ id: uid(), url, filename: extractFilename(url), status: 'waiting', blob: null, error: null });
+        added++;
+      }
+    });
+    document.getElementById('url-input').value = '';
+    render();
+    if (added) document.getElementById('queue-card').style.display = 'block';
+  }
+
+  function removeItem(id) {
+    queue = queue.filter(q => q.id !== id);
+    if (!queue.length) document.getElementById('queue-card').style.display = 'none';
+    render();
+  }
+
+  function clearDone() {
+    queue = queue.filter(q => q.status !== 'done');
+    if (!queue.length) document.getElementById('queue-card').style.display = 'none';
+    render();
+  }
+
+  function clearAll() {
+    queue = [];
+    document.getElementById('queue-card').style.display = 'none';
+    render();
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  function render() {
+    const list = document.getElementById('queue-list');
+    const countEl = document.getElementById('queue-count');
+    const dlWrap = document.getElementById('download-all-wrap');
+
+    countEl.textContent = `(${queue.length})`;
+
+    const doneCount = queue.filter(q => q.status === 'done').length;
+    dlWrap.style.display = doneCount >= 2 ? 'block' : 'none';
+
+    if (!queue.length) {
+      list.innerHTML = '<div class="empty">No items in queue</div>';
+      return;
+    }
+
+    list.innerHTML = queue.map(item => `
+      <div class="queue-item" id="qi-${item.id}">
+        <div class="item-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#1e40af" stroke-width="2" stroke-linecap="round">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14,2 14,8 20,8"/>
+          </svg>
+        </div>
+        <div class="item-info">
+          <div class="item-name" title="${item.filename}">${item.filename}</div>
+          <div class="item-url"  title="${item.url}">${item.url}</div>
+          ${item.error ? `<div style="font-size:11px;color:#b91c1c;margin-top:2px">${item.error}</div>` : ''}
+        </div>
+        <span class="badge badge-${item.status}">
+          ${item.status === 'processing' ? '<span class="spin"></span>' : ''}
+          ${item.status}
+        </span>
+        <div class="item-actions">
+          ${item.status === 'done' && item.blob
+            ? `<button class="sm-btn green" onclick="downloadOne('${item.id}')">Download</button>`
+            : ''
+          }
+          ${item.status !== 'processing'
+            ? `<button class="sm-btn" onclick="removeItem('${item.id}')">Remove</button>`
+            : ''
+          }
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ── Processing ─────────────────────────────────────────────────────────────
+  async function processQueue() {
+    if (isProcessing) return;
+    const pending = queue.filter(q => q.status === 'waiting' || q.status === 'failed');
+    if (!pending.length) return;
+
+    isProcessing = true;
+    document.getElementById('process-btn').disabled = true;
+    document.getElementById('progress-wrap').style.display = 'block';
+
+    let done = 0;
+    const total = pending.length;
+
+    for (const item of pending) {
+      updateProgress(done, total, `Processing: ${item.filename}`);
+      setStatus(item.id, 'processing');
+
+      try {
+        const res = await fetch(`${API_BASE}/index`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: item.url, filename: item.filename }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+          throw new Error(err.error || `HTTP ${res.status}`);
+        }
+
+        const blob = await res.blob();
+        const q = queue.find(q => q.id === item.id);
+        if (q) { q.blob = blob; q.status = 'done'; q.error = null; }
+      } catch (err) {
+        const q = queue.find(q => q.id === item.id);
+        if (q) { q.status = 'failed'; q.error = err.message; }
+      }
+
+      done++;
+      render();
+    }
+
+    updateProgress(done, total, `Done — ${done} of ${total} processed`);
+    isProcessing = false;
+    document.getElementById('process-btn').disabled = false;
+  }
+
+  function setStatus(id, status) {
+    const q = queue.find(q => q.id === id);
+    if (q) q.status = status;
+    render();
+  }
+
+  function updateProgress(done, total, label) {
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-label').textContent = label;
+  }
+
+  // ── Downloads ──────────────────────────────────────────────────────────────
+  function downloadOne(id) {
+    const item = queue.find(q => q.id === id);
+    if (!item?.blob) return;
+    triggerDownload(item.blob, item.filename);
+  }
+
+  async function downloadAll() {
+    const done = queue.filter(q => q.status === 'done' && q.blob);
+    if (!done.length) return;
+
+    // Lazy-load JSZip from CDN
+    if (!window.JSZip) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+    }
+
+    const zip = new JSZip();
+    for (const item of done) {
+      const buf = await item.blob.arrayBuffer();
+      zip.file(item.filename, buf);
+    }
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    triggerDownload(zipBlob, 'documents.zip');
+  }
+
+  function triggerDownload(blob, filename) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src; s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  // ── Enter key shortcut ─────────────────────────────────────────────────────
+  document.getElementById('url-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) addToQueue();
+  });
+
+  render();
+</script>
+</body>
+</html>
